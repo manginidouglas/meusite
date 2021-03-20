@@ -1,37 +1,30 @@
 ---
-title: "Hello R Markdown"
-author: "Frida Gomam"
-date: 2015-07-23T21:13:14-05:00
-categories: ["R"]
-tags: ["R Markdown", "plot", "regression"]
+title: " Loops com purr"
+author: "D.M.M"
+date: '2021-03-20T21:13:14-05:00'
+categories: R
+tags:
+- R Markdown
+- purr
+- loops
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(collapse = TRUE)
+knitr::opts_chunk$set(echo = FALSE) # oculta o código 
 ```
 
-# R Markdown
+# Problema
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Ajustar um modelo de regressão linear aos dados `mtcars`, que explique a variável a eficiência do veículo (miles per gallon - mpg) em função do seu peso em libras (wt). Além disso, queremos ajustar um modelo para cada classe de carros, determinada pelo número de cilíndros do motor (4, 6 ou 8)
 
-You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
-fit <- lm(dist ~ speed, data = cars)
-fit
+Para isso, usaremos a função `map` do pacote `purr`.
+
+```{r}
+library(tidyverse)
+
+
+
+
 ```
 
-# Including Plots
-
-You can also embed plots. See Figure \@ref(fig:pie) for example:
-
-```{r pie, fig.cap='A fancy pie chart.', tidy=FALSE}
-par(mar = c(0, 1, 0, 1))
-pie(
-  c(280, 60, 20),
-  c('Sky', 'Sunny side of pyramid', 'Shady side of pyramid'),
-  col = c('#0292D8', '#F7EA39', '#C4B632'),
-  init.angle = -50, border = NA
-)
-```
