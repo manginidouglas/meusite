@@ -1,0 +1,77 @@
+---
+title: "Análise do IRC"
+author: "Douglas Mangini"
+date: "20/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r packages, message=F, warning=F}
+library(tidyverse)
+library(lubridate)
+library(stargazer)
+library(reactable)
+```
+
+```{r data, message=F}
+df <- read_csv("df.csv")
+
+```
+
+
+
+# Dados Simulados
+
+```{r, eval=F}
+
+knitr::kable(df[1:10,], caption = "IRC")
+```
+
+
+```{r}
+reactable::reactable(df,
+                     defaultPageSize = 4, 
+                     minRows = 4, 
+                     searchable = TRUE)
+```
+
+# Ocorrências por dia
+
+```{r por dia}
+por_dia <- df %>% group_by(period) %>% count()
+
+reactable::reactable(por_dia,
+                     defaultPageSize = 4, 
+                     minRows = 4, 
+                     searchable = TRUE)
+```
+
+
+# Motivo da ocorrência
+```{r resumo global}
+
+resumo_global <- df %>% group_by(tipo,motivo,grupo) %>% count()
+
+reactable::reactable(resumo_global,
+                     defaultPageSize = 4,
+                     minRows = 4,
+                     filterable = TRUE)
+
+```
+
+# Ocorrências por cidades
+
+```{r por cidade}
+
+por_cidade <- df %>% group_by(bases,cidade) %>% count()
+
+reactable::reactable(por_cidade,
+                     defaultPageSize = 4,
+                     minRows = 4,
+                     filterable = TRUE)
+
+```
+
