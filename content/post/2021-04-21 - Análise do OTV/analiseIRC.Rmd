@@ -1,0 +1,333 @@
+---
+title: "Análise do IRC"
+output:
+  html_notebook:
+    code_folding: hide
+    toc: yes
+date: '2020-04-19'
+---
+
+```{r pacotes, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(ggrepel)
+library(ggpubr)
+
+```
+
+```{r simulDadosIRC, eval=FALSE}
+# municipios RS com lat, lng e pop
+set.seed(123)
+irc <- read_csv("munirs.csv") %>%
+  rename(base = nome)%>%
+  filter(!is.na(pop)) %>% 
+  select(-capital,-codigo_uf, -codigo_ibge) %>%
+  slice_sample(n=100) %>% 
+  add_column(coord = rep(c("Oeste","Norte","Metropolitana","Sul"),25)) %>%
+  add_column(grupo = rep(c("A","B"),50)) %>%
+  add_column(tipo = rep(c(rep("QL",5),rep("QR",5)),10)) %>%
+  add_column(motivo = rep(sprintf("M%d",1:10),10)) %>%
+  slice_sample(n = 12000, weight_by = pop,replace = T) %>%
+  add_column(data_lancamento = sample(seq(ymd(20201201),ymd(20291201),"day"),12000,T))%>%
+  mutate(data_lancamento_arr = floor_date(data_lancamento,"month"))
+
+meta <- tibble(
+  
+  data_lancamento_arr = seq.Date(ymd(20201201),ymd(20291201),"month"),
+  meta = sample(80:130,size = 109, replace = T) # 109 meses entre 2020 e 2029  
+)
+
+irc <- left_join(irc,meta)
+
+```
+
+```{r carregaDados, message=FALSE}
+irc <- read_csv("irc.csv")
+```
+
+```{r mesAtual}
+mesAtual <- max(irc$data_lancamento_arr)
+
+filterPeriod <- function(df, Inicio = mesAtual - months(12), Fim = mesAtual, Tipo = NULL) {
+    condTipo <- if(!is.null(Tipo)) quote(tipo == Tipo) else TRUE
+    
+    df %>%
+      filter(between(data_lancamento_arr, {{Inicio}}, {{Fim}}) & !!(condTipo))
+  }
+  
+```
+
+
+```{r TabelaInterativa}
+irc %>% 
+  select(base,
+         coord,
+         grupo,
+         tipo,
+         motivo,
+         data_lancamento_arr) %>%
+  reactable::reactable(defaultPageSize = 5,minRows = 5,filterable = TRUE)
+
+```
+
+```{r plotSettings}
+tema <- theme(
+    plot.title = element_text(size = 25,hjust = 0.5),
+    plot.subtitle = element_text(size = 18,hjust = 0.5),
+    legend.position = "top",
+    legend.key = element_blank(),
+    legend.text = element_text(size=15),
+    legend.title = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(colour = "grey"),
+    panel.grid.major.x = element_line(colour = "grey"),
+    axis.text = element_text(size = 12,face = "bold"),
+    axis.title.y = element_blank(),
+    axis.title.x = NULL,
+    axis.ticks = element_blank())
+```
+
+
+## Visão Geral - Refaturamentos no mês 
+
+### Meta
+Meta do mês, refaturamentos por tipo QR e QL e tendência em 12 meses, por coordenação
+
+```{r geralMeta, message=FALSE, fig.width=10,fig.height=5}
+
+mesAtual <- max(irc$data_lancamento_arr)
+
+irc %>%
+  filterPeriod() %>%
+  group_by(coord,tipo,data_lancamento_arr,meta) %>%
+  count() %>% 
+  ggplot(aes(data_lancamento_arr,n))+
+  geom_bar(aes(fill=tipo),stat = "identity")+
+  geom_line(aes(data_lancamento_arr,meta),color="Gold", size=1.1)+
+  geom_text(aes(data_lancamento_arr,meta,label=meta))+
+  scale_x_date(NULL,date_breaks = "1 month",date_labels = "%m/%y")+
+  scale_y_continuous(n.breaks = 12)+
+  scale_fill_manual(values=c("DarkOrange","MidnightBlue"))+
+  labs(title = "Refaturamentos - Meta",
+       subtitle = "em 12 meses",
+       tag = "1")+
+  tema+
+  theme(panel.grid.major.x =element_blank())
+
+```
+### Tendência das Coordenações
+O mesmo gráfico, com ênfase na tendência das coordenações
+
+```{r geralCoord, fig.width=10,fig.height=5}
+
+irc %>% 
+  filterPeriod() %>%
+  group_by(coord,data_lancamento_arr) %>%
+  count() %>%
+  ggplot(aes(data_lancamento_arr,n,group =coord))+
+  geom_bar(stat = "identity")+
+  geom_point(aes(color=coord),size=2)+
+  geom_line(aes(color=coord),size=1)+
+  scale_x_date(NULL,date_breaks = "1 month", date_labels =("%m/%y"))+
+  scale_y_continuous(n.breaks = 12)+
+  labs(title = "Refaturamentos - Coordenações",
+       subtitle = "",
+       tag = "2")+
+  tema+
+  theme(panel.grid.major.x =element_blank())+
+  scale_color_brewer(palette = "Set1")
+```
+### Coordenações - Olhando de perto
+Olhando as coordenações mais de perto
+
+```{r CoordPerto, fig.width=10,fig.height=5}
+irc %>% 
+    filterPeriod() %>%
+    mutate(coord = coord %>% fct_infreq()) %>%
+    group_by(coord,data_lancamento_arr) %>%
+    count() %>%
+    ggplot(aes(data_lancamento_arr,n,group =coord))+
+    geom_point(aes(color=coord),position="stack",size=2)+
+    geom_line(aes(color=coord),position="stack",size=1)+
+    geom_text(aes(label=n),position = "stack",vjust=-.4)+
+    scale_x_date(NULL,date_breaks = "1 month", date_labels = "%m/%y")+
+    labs(title = "Refaturamentos - Coordenações",
+         subtitle = "",
+         tag = "3")+
+  tema+
+  theme(panel.grid.major.y =element_blank())+
+  scale_color_brewer(palette = "Set1")
+  
+
+```
+### Coordenações e Tipo de Refaturamento
+
+```{r coordTipo,fig.width=11,fig.height=7}
+irc %>%
+  filterPeriod() %>%
+  group_by(tipo,coord,data_lancamento_arr) %>%
+  count() %>%
+  ggplot(aes(data_lancamento_arr,n))+
+  geom_line(aes(color=tipo), size=1.1)+
+  facet_wrap(~coord, nrow = 2,scales = "free")+
+  labs(title = "Refaturamentos - Coordenações e Tipo",
+         subtitle = "",
+         tag = "3A")+
+  tema+
+  theme(strip.text.x = element_text(size = 20),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 30))+
+  scale_x_date(date_breaks = "1 month", date_labels = "%m/%y")+
+  scale_color_brewer(palette = "Set1")
+
+```
+
+
+
+
+Esta Função retorna o ranking do maiores refaturamentos na categoria e no mÊs. Escolha um tipo de refaturmanto.
+Este Gráfico está mostrando o mês passado porque meus dados simulados deram apenas uma observação
+para o mês atual. **Lembre-se de ajustar o código**
+
+```{r pioresNoMes}
+pioresNoMes <- function(chave = "base", mes = mesAtual, tipo = "QL") {
+
+  irc %>% 
+  filter(data_lancamento_arr == {{ mes }} & tipo == {{ tipo }}) %>%
+  mutate({{chave}} := .data[[ chave ]] %>% fct_infreq() %>% fct_rev()) %>%
+  ggplot()+
+  geom_bar(aes(.data[[ chave ]], fill = coord))+
+  coord_flip()+
+  scale_y_continuous(n.breaks = 12)+
+  ylab(label = "Refaturamentos")+
+  labs(title = str_c("Qualidade da Leitura - ",{{chave}}),
+       subtitle = str_c("Período: ", {{ mes }}),
+       tag = "4")+
+  tema+
+    theme(panel.grid.major.y =element_blank())+
+    scale_fill_brewer(palette = "Set1")
+    
+}
+```
+
+Esta Função recebe um fator (base, motivo, etc), calcula os p piores de um dado mes e retorna a série em 12 meses. Escolha um tipo de refaturmanto. 
+
+```{r piores12meses}
+piores12meses <- function(chave = "base", mes = mesAtual, tipo = "QL", p = 3) {
+
+  x <- irc %>% 
+    filter(data_lancamento_arr == {{mes}} & tipo == {{tipo}})%>%
+    count(.data[[chave]],sort = T) %>% 
+    pull(.data[[chave]]) %>% 
+    head(p)
+  
+  irc %>%
+    filter(between(data_lancamento_arr, {{mes}}-months(12),{{mes}}),
+           .data[[chave]] %in% {{ x }}) %>%
+    group_by(.data[[chave]],data_lancamento_arr) %>%
+    summarise(n = n()) %>%
+    ggplot(aes(data_lancamento_arr,n))+
+    geom_line(aes(color=.data[[chave]]),size=1.5)+
+    scale_x_date(NULL,date_breaks = "1 month", date_labels = "%m/%y")+
+      scale_y_continuous(n.breaks = 12)+
+    labs(title = str_c("Qualidade da Leitura - ",{{chave}}),
+         subtitle = "12 meses")+
+    tema+
+    theme(panel.grid.major.y =element_blank())+
+    scale_color_brewer(palette = "Set1")
+  
+}
+```
+
+## Qualidade da Leitura
+
+### Bases
+```{r PioresNoMesBaseQL, message=FALSE, fig.width=10,fig.height=5}
+
+pioresNoMes(chave = "base", tipo = "QL", mes = mesAtual-months(1))
+```
+
+
+```{r Piores12MesesBaseQL, message=FALSE, fig.width=10,fig.height=5}
+
+piores12meses(chave = "base", tipo = "QL", mes = mesAtual-months(1))+
+  labs(tag = 5)
+```
+
+### Motivos
+```{r PioresNoMesMotivoQL, message=FALSE, fig.width=10,fig.height=5}
+
+pioresNoMes(chave = "motivo", tipo = "QL", mes = mesAtual-months(1))+
+  labs(tag = 6)
+```
+
+
+```{r Piores12MesesMotivoQL, message=FALSE, fig.width=10,fig.height=5}
+
+piores12meses(chave = "motivo", tipo = "QL", mes = mesAtual-months(1))+
+  labs(tag = 7)
+```
+
+### Grupos
+```{r PioresNoMesGrupoQL, message=FALSE, fig.width=10,fig.height=5}
+
+pioresNoMes(chave = "grupo",tipo = "QL", mes = mesAtual-months(1))+
+  labs(tag = 8)
+```
+
+```{r Piores12MesesGrupoQL, message=FALSE, fig.width=10,fig.height=5}
+
+piores12meses(chave = "grupo",tipo = "QL", mes = mesAtual-months(1))+
+  labs(tag = 9)
+```
+
+## Qualidade do Refaturamento 
+
+### Bases
+```{r PioresNoMesBaseQR, message=FALSE, fig.width=10,fig.height=5}
+
+pioresNoMes(chave = "base", tipo = "QR", mes = mesAtual-months(1))+
+  labs(tag = 10)
+```
+
+
+```{r Piores12MesesBaseQR, message=FALSE, fig.width=10,fig.height=5}
+
+piores12meses(chave = "base", tipo = "QR", mes = mesAtual-months(1))+
+  labs(tag = 11)
+```
+
+### Motivos
+```{r PioresNoMesMotivoQR, message=FALSE, fig.width=10,fig.height=5}
+
+pioresNoMes(chave = "motivo", tipo = "QR", mes = mesAtual-months(1))+
+  labs(tag = 12)
+```
+
+
+```{r Piores12MesesMotivoQR, message=FALSE, fig.width=10,fig.height=5}
+
+piores12meses(chave = "motivo", tipo = "QR", mes = mesAtual-months(1))+
+  labs(tag = 13)
+```
+
+### Grupos
+```{r PioresNoMesGrupoQR, message=FALSE, fig.width=10,fig.height=5}
+
+pioresNoMes(chave = "grupo",tipo = "QR", mes = mesAtual-months(1))+
+  labs(tag = 14)
+```
+
+```{r Piores12MesesGrupoQR, message=FALSE, fig.width=10,fig.height=5}
+
+piores12meses(chave = "grupo",tipo = "QR", mes = mesAtual-months(1))+
+  labs(tag = 15)
+```
+
+
+
+
+
+
+
