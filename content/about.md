@@ -3,4 +3,4 @@ date: "2016-05-05T21:48:51-07:00"
 title: Sobre
 ---
 
-[Um bom disco](bezerra.png)
+[Um bom disco](bezerra.jpg)
